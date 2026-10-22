@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portfolio Pulse</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand-mark"><span>PP</span><div><p>PORTFOLIO PULSE</p><h1>ภาพรวมพอร์ตลงทุน</h1></div></div>
+      <div class="toolbar"><span class="live-dot"></span><span id="updatedAt">กำลังโหลดข้อมูล...</span><label for="csvImport" class="import-button">นำเข้า CSV</label><input id="csvImport" type="file" accept=".csv,text/csv" hidden /><button id="reloadButton" class="icon-button" title="โหลดข้อมูลใหม่" aria-label="โหลดข้อมูลใหม่">↻</button></div>
+    </header>
+
+    <section class="hero-row">
+      <div><p class="eyebrow">MARKET SNAPSHOT / US EQUITIES</p><h2>มองพอร์ตให้ชัด<br><em>ตัดสินใจให้ไวขึ้น</em></h2></div>
+      <div class="hero-note"><span class="note-line"></span><p>สรุปจากรายการซื้อขาย<br>และราคาตลาดล่าสุดในไฟล์ CSV</p></div>
+    </section>
+
+    <section id="kpiGrid" class="kpi-grid">
+      <article class="kpi-card accent">
+        <div class="kpi-label">มูลค่าพอร์ตปัจจุบัน</div>
+        <strong id="portfolioValue">—</strong>
+        <span id="holdingCount">—</span>
+      </article>
+      <article class="kpi-card">
+        <div class="kpi-label" style="display:flex; justify-content:space-between;">เป้าหมายพอร์ต <button id="editTargetBtn" style="background:none;border:none;cursor:pointer" title="แก้ไขเป้าหมาย">✏️</button></div>
+        <strong id="targetValue">$1,000,000.00</strong>
+        <span id="targetProgress">ความคืบหน้า —</span>
+      </article>
+      <article class="kpi-card"><div class="kpi-label">ต้นทุนสุทธิ</div><strong id="costBasis">—</strong><span>คำนวณจากรายการ BUY / SELL</span></article>
+      <article class="kpi-card"><div class="kpi-label">กำไร / ขาดทุนโดยประมาณ</div><strong id="profitLoss">—</strong><span id="returnPercent">—</span></article>
+      <article class="kpi-card"><div class="kpi-label">การเปลี่ยนแปลงวันนี้</div><strong id="dayChange">—</strong><span>อ้างอิงราคาปัจจุบันในไฟล์</span></article>
+    </section>
+
+    <section class="panel performance-history-panel" style="margin-bottom: 14px;">
+      <div class="panel-heading">
+        <div><p class="eyebrow">HISTORICAL PERFORMANCE</p><h3>ผลตอบแทนเปรียบเทียบตลาด (Mock Data)</h3></div>
+        <div class="timeframe-tools" style="display: flex; gap: 5px;">
+          <button class="tf-btn active" data-tf="1D">1D</button>
+          <button class="tf-btn" data-tf="1M">1M</button>
+          <button class="tf-btn" data-tf="6M">6M</button>
+          <button class="tf-btn" data-tf="1Y">1Y</button>
+          <button class="tf-btn" data-tf="YTD">YTD</button>
+          <button class="tf-btn" data-tf="3Y">3Y</button>
+        </div>
+      </div>
+      <div class="compare-tools" style="margin-top: 15px; display: flex; gap: 15px; font-size: 12px; color: var(--muted); font-family: Manrope;">
+        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;"><input type="checkbox" id="compareSP500"> เปรียบเทียบ S&P 500</label>
+        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;"><input type="checkbox" id="compareNASDAQ"> เปรียบเทียบ NASDAQ</label>
+      </div>
+      <div class="history-chart-wrap" style="height: 300px; margin-top: 15px; position: relative;">
+        <canvas id="historyChart"></canvas>
+      </div>
+    </section>
+
+    <section class="main-grid">
+      <article class="panel allocation-panel"><div class="panel-heading"><div><p class="eyebrow">ALLOCATION</p><h3>สัดส่วนการถือครอง</h3></div><span class="panel-meta">ตามมูลค่าปัจจุบัน</span></div><div class="donut-wrap"><canvas id="allocationChart"></canvas><div class="donut-center"><strong id="donutTotal">—</strong><span>มูลค่ารวม</span></div></div><div id="allocationLegend" class="legend"></div></article>
+      <article class="panel performance-panel"><div class="panel-heading"><div><p class="eyebrow">PERFORMANCE</p><h3>กำไร / ขาดทุนรายตัว</h3></div><span class="panel-meta">เรียงจากสูงไปต่ำ</span></div><div class="chart-wrap"><canvas id="performanceChart"></canvas></div></article>
+    </section>
+
+    <section class="panel holdings-panel"><div class="panel-heading table-heading"><div><p class="eyebrow">HOLDINGS</p><h3>รายการถือครอง</h3></div><div class="table-tools"><label class="search-box">⌕ <input id="searchInput" type="search" placeholder="ค้นหา Symbol" /></label><select id="sortSelect" aria-label="เรียงข้อมูล"><option value="value">มูลค่ามากที่สุด</option><option value="pl">กำไรสูงสุด</option><option value="change">เปลี่ยนแปลงวันนี้</option><option value="symbol">ชื่อย่อ A-Z</option></select></div></div><div class="table-scroll"><table><thead><tr><th>สินทรัพย์</th><th>จำนวน</th><th>ราคาปัจจุบัน</th><th>ต้นทุนเฉลี่ย</th><th>มูลค่าปัจจุบัน</th><th>กำไร/ขาดทุน</th><th>วันนี้</th><th>เป้าหมาย %</th></tr></thead><tbody id="holdingsBody"></tbody></table></div></section>
+    <footer><span>PORTFOLIO PULSE</span><span id="rowStatus">พร้อมใช้งาน</span></footer>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
