@@ -1,5 +1,6 @@
 const DATA_FILE = 'portfolio.csv';
 const CSV_STORAGE_KEY = 'portfolio-dashboard.csv';
+const TRANSACTIONS_STORAGE_KEY = 'portfolio-dashboard.transactions';
 const palette = ['#17231f', '#789d59', '#4d87a8', '#d98c62', '#8c79a8', '#c5b75c', '#6b9b96', '#b66e75'];
 let rows = [];
 let charts = {};
@@ -32,8 +33,23 @@ function parseCSV(text) {
     const tradeDate = /^\d{8}$/.test(rawTradeDate)
       ? `${rawTradeDate.slice(0, 4)}-${rawTradeDate.slice(4, 6)}-${rawTradeDate.slice(6, 8)}`
       : rawTradeDate.replace(/\//g, '-');
-    return { symbol: clean(fields[0]), price: Number(fields[1]) || 0, change: Number(fields[4]) || 0, purchase: Number(fields[10]) || 0, quantity: Number(fields[11]) || 0, commission: Number(fields[12]) || 0, type: typeIndex > -1 ? clean(fields[typeIndex]).toUpperCase() : '', tradeDate };
+    return { symbol: clean(fields[0]), price: Number(fields[1]) || 0, change: Number(fields[4]) || 0, purchase: Number(fields[10]) || 0, quantity: Number(fields[11]) || 0, commission: Number(fields[12]) || 0, type: typeIndex > -1 ? clean(fields[typeIndex]).toUpperCase() : '', tradeDate, note: clean(fields[15]) };
   }).filter(row => row.symbol && row.price);
+}
+
+function loadSavedTransactions() {
+  const saved = localStorage.getItem(TRANSACTIONS_STORAGE_KEY);
+  if (!saved) return [];
+
+  const transactions = JSON.parse(saved);
+  if (!Array.isArray(transactions) || transactions.some(row =>
+    !row || typeof row.symbol !== 'string' || !Number.isFinite(row.price) ||
+    !Number.isFinite(row.quantity) || !Number.isFinite(row.commission) ||
+    !['BUY', 'SELL'].includes(row.type) || typeof row.tradeDate !== 'string'
+  )) {
+    throw new Error('ข้อมูลรายการซื้อขายที่บันทึกไว้ไม่ถูกต้อง กรุณานำเข้าไฟล์ CSV ใหม่');
+  }
+  return transactions;
 }
 
 function aggregate(data) {
@@ -93,6 +109,130 @@ function renderTable(portfolio) {
   });
   
   document.querySelector('#rowStatus').textContent = `แสดง ${filtered.length} จาก ${portfolio.length} สินทรัพย์`;
+}
+
+function renderTransactions() {
+  const transactionRows = rows
+    .filter(row => row.type === 'BUY' || row.type === 'SELL')
+    .map((row, index) => ({ ...row, originalIndex: index }))
+    .sort((a, b) => b.tradeDate.localeCompare(a.tradeDate) || b.originalIndex - a.originalIndex);
+  const body = document.querySelector('#transactionsBody');
+  const count = document.querySelector('#transactionCount');
+  body.replaceChildren();
+  count.textContent = `${transactionRows.length} รายการ`;
+
+  if (!transactionRows.length) {
+    const tableRow = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 7;
+    cell.className = 'empty';
+    cell.textContent = 'ยังไม่มีรายการซื้อขาย';
+    tableRow.append(cell);
+    body.append(tableRow);
+    return;
+  }
+
+  transactionRows.forEach(row => {
+    const tableRow = document.createElement('tr');
+    const values = [
+      row.tradeDate || '—',
+      row.symbol,
+      row.type,
+      number(row.quantity),
+      money(row.purchase),
+      money(row.commission),
+      row.note || '—'
+    ];
+
+    values.forEach((value, index) => {
+      const cell = document.createElement('td');
+      if (index === 2) {
+        const badge = document.createElement('span');
+        badge.className = `transaction-type ${row.type === 'BUY' ? 'buy' : 'sell'}`;
+        badge.textContent = row.type === 'BUY' ? 'ซื้อ' : 'ขาย';
+        cell.append(badge);
+      } else {
+        cell.textContent = value;
+      }
+      tableRow.append(cell);
+    });
+
+    body.append(tableRow);
+  });
+}
+
+function addTransaction(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = document.querySelector('#transactionFormStatus');
+  const symbol = clean(form.elements.symbol.value).toUpperCase();
+  const type = form.elements.type.value;
+  const tradeDate = form.elements.date.value;
+  const purchase = Number(form.elements.price.value);
+  const quantity = Number(form.elements.quantity.value);
+  const commission = Number(form.elements.commission.value);
+  const note = clean(form.elements.note.value);
+
+  if (!/^[A-Z0-9.-]+$/.test(symbol)) {
+    status.textContent = 'กรุณาระบุสัญลักษณ์หุ้นให้ถูกต้อง';
+    return;
+  }
+  if (!tradeDate || !Number.isFinite(purchase) || purchase <= 0 ||
+      !Number.isFinite(quantity) || quantity <= 0 ||
+      !Number.isFinite(commission) || commission < 0 ||
+      !['BUY', 'SELL'].includes(type)) {
+    status.textContent = 'กรุณาตรวจสอบวันที่ ราคา จำนวนหุ้น และค่าคอมมิชชัน';
+    return;
+  }
+
+  if (type === 'SELL') {
+    const holding = aggregate(rows).find(item => item.symbol === symbol);
+    if (!holding || quantity > holding.quantity + 0.00000001) {
+      status.textContent = 'จำนวนขายมากกว่าหุ้นที่ถืออยู่';
+      return;
+    }
+  }
+
+  const currentQuote = rows.find(row => row.symbol === symbol);
+  const transaction = {
+    symbol,
+    price: currentQuote ? currentQuote.price : purchase,
+    change: currentQuote ? currentQuote.change : 0,
+    purchase,
+    quantity,
+    commission,
+    type,
+    tradeDate,
+    note
+  };
+  let nextSavedTransactions;
+  try {
+    nextSavedTransactions = [...loadSavedTransactions(), transaction];
+    localStorage.setItem(TRANSACTIONS_STORAGE_KEY, JSON.stringify(nextSavedTransactions));
+  } catch (error) {
+    console.error('Could not save transaction:', error);
+    status.textContent = `บันทึกรายการไม่สำเร็จ: ${error.message || 'ข้อมูลที่บันทึกไว้ไม่ถูกต้อง'}`;
+    return;
+  }
+
+  rows.push(transaction);
+  const portfolio = aggregate(rows);
+  updateText(portfolio);
+  renderCharts(portfolio);
+  renderTable(portfolio);
+  renderHistoryChart();
+  renderTransactions();
+  status.textContent = 'เพิ่มรายการซื้อขายเรียบร้อย และบันทึกไว้ในอุปกรณ์นี้';
+  form.reset();
+  form.elements.date.value = getLocalDateString();
+  form.elements.commission.value = '0';
+}
+
+function getLocalDateString() {
+  const date = new Date();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function calculateReturns(dataArray, days) {
@@ -274,15 +414,16 @@ async function refreshHistoricalData() {
   }
 }
 
-async function renderPortfolio(csvText) {
+async function renderPortfolio(csvText, extraTransactions = []) {
   const importedRows = parseCSV(csvText);
   if (!importedRows.length) throw new Error('ไฟล์ CSV ไม่มีรายการที่อ่านได้');
 
-  rows = importedRows;
+  rows = [...importedRows, ...extraTransactions];
   const portfolio = aggregate(rows);
   updateText(portfolio);
   renderCharts(portfolio);
   renderTable(portfolio);
+  renderTransactions();
 
   historicalData = {};
   renderHistoryChart();
@@ -293,13 +434,14 @@ async function renderPortfolio(csvText) {
 async function loadDashboard() {
   try { 
       const savedCSV = localStorage.getItem(CSV_STORAGE_KEY);
+      const savedTransactions = loadSavedTransactions();
       let csvText = savedCSV;
       if (!csvText) {
         const response = await fetch(DATA_FILE);
         if (!response.ok) throw new Error('โหลดไฟล์ไม่สำเร็จ');
         csvText = await response.text();
       }
-      await renderPortfolio(csvText);
+      await renderPortfolio(csvText, savedTransactions);
       document.querySelector('#rowStatus').textContent = savedCSV
         ? 'แสดงข้อมูล CSV ที่บันทึกไว้ในอุปกรณ์นี้'
         : 'แสดงข้อมูลจาก portfolio.csv';
@@ -316,7 +458,10 @@ document.querySelector('#csvImport').addEventListener('change', async event => {
   try {
     const csvText = await file.text();
     if (!parseCSV(csvText).length) throw new Error('ไฟล์ CSV ไม่มีรายการที่อ่านได้');
+    const savedTransactions = loadSavedTransactions();
+    if (savedTransactions.length && !confirm(`การนำเข้า CSV ใหม่จะลบรายการที่เพิ่มเอง ${savedTransactions.length} รายการ ต้องการดำเนินการต่อหรือไม่?`)) return;
     localStorage.setItem(CSV_STORAGE_KEY, csvText);
+    localStorage.removeItem(TRANSACTIONS_STORAGE_KEY);
     await renderPortfolio(csvText);
     document.querySelector('#rowStatus').textContent = `นำเข้าและบันทึก ${file.name} ไว้ในอุปกรณ์นี้`;
   } catch (error) {
@@ -347,5 +492,21 @@ document.querySelector('#editTargetBtn').addEventListener('click', () => {
 document.querySelector('#searchInput').addEventListener('input', () => renderTable(aggregate(rows)));
 document.querySelector('#sortSelect').addEventListener('change', () => renderTable(aggregate(rows)));
 document.querySelector('#refreshHistoryButton').addEventListener('click', refreshHistoricalData);
+document.querySelector('#transactionForm').addEventListener('submit', addTransaction);
+document.querySelector('#transactionDate').value = getLocalDateString();
+
+document.querySelectorAll('.tab-button').forEach(button => {
+  button.addEventListener('click', () => {
+    const viewId = button.dataset.view;
+    document.querySelectorAll('.tab-button').forEach(tab => {
+      const active = tab === button;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+    });
+    document.querySelectorAll('.tab-view').forEach(view => {
+      view.hidden = view.id !== viewId;
+    });
+  });
+});
 
 loadDashboard();

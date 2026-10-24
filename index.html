@@ -16,6 +16,12 @@
       <div class="toolbar"><span class="live-dot"></span><span id="updatedAt">ยังไม่ได้รีเฟรชราคาย้อนหลัง</span><label for="csvImport" class="import-button">นำเข้า CSV</label><input id="csvImport" type="file" accept=".csv,text/csv" hidden /><button id="refreshHistoryButton" class="refresh-button" type="button" title="เรียกข้อมูลย้อนหลังจาก Tiingo" aria-label="รีเฟรชราคาย้อนหลัง"><span class="refresh-icon" aria-hidden="true">↻</span><span id="refreshButtonLabel">รีเฟรชราคา</span></button></div>
     </header>
 
+    <nav class="tab-nav" aria-label="เมนูหลัก">
+      <button class="tab-button active" type="button" data-view="dashboardView" aria-selected="true">ภาพรวม</button>
+      <button class="tab-button" type="button" data-view="transactionsView" aria-selected="false">รายการซื้อขาย</button>
+    </nav>
+
+    <div id="dashboardView" class="tab-view">
     <section class="hero-row">
       <div><p class="eyebrow">MARKET SNAPSHOT / US EQUITIES</p><h2>มองพอร์ตให้ชัด<br><em>ตัดสินใจให้ไวขึ้น</em></h2></div>
       <div class="hero-note"><span class="note-line"></span><p>สรุปจากรายการซื้อขาย<br>และราคาตลาดล่าสุดในไฟล์ CSV</p></div>
@@ -65,6 +71,51 @@
     </section>
 
     <section class="panel holdings-panel"><div class="panel-heading table-heading"><div><p class="eyebrow">HOLDINGS</p><h3>รายการถือครอง</h3></div><div class="table-tools"><label class="search-box">⌕ <input id="searchInput" type="search" placeholder="ค้นหา Symbol" /></label><select id="sortSelect" aria-label="เรียงข้อมูล"><option value="value">มูลค่ามากที่สุด</option><option value="pl">กำไรสูงสุด</option><option value="change">เปลี่ยนแปลงวันนี้</option><option value="symbol">ชื่อย่อ A-Z</option></select></div></div><div class="table-scroll"><table><thead><tr><th>สินทรัพย์</th><th>จำนวน</th><th>ราคาปัจจุบัน</th><th>ต้นทุนเฉลี่ย</th><th>มูลค่าปัจจุบัน</th><th>กำไร/ขาดทุน</th><th>วันนี้</th><th>เป้าหมาย %</th></tr></thead><tbody id="holdingsBody"></tbody></table></div></section>
+    </div>
+
+    <section id="transactionsView" class="tab-view" hidden>
+      <section class="panel transactions-panel">
+        <div class="panel-heading table-heading">
+          <div><p class="eyebrow">TRANSACTIONS</p><h3>รายการซื้อขาย</h3></div>
+          <span id="transactionCount" class="panel-meta">0 รายการ</span>
+        </div>
+        <form id="transactionForm" class="transaction-form">
+          <label>สัญลักษณ์
+            <input id="transactionSymbol" name="symbol" type="text" placeholder="เช่น AAPL" maxlength="15" required />
+          </label>
+          <label>วันที่
+            <input id="transactionDate" name="date" type="date" required />
+          </label>
+          <label>ประเภท
+            <select id="transactionType" name="type" required>
+              <option value="BUY">ซื้อ</option>
+              <option value="SELL">ขาย</option>
+            </select>
+          </label>
+          <label>ราคาซื้อขาย
+            <input id="transactionPrice" name="price" type="number" min="0.000001" step="any" placeholder="0.00" required />
+          </label>
+          <label>จำนวนหุ้น
+            <input id="transactionQuantity" name="quantity" type="number" min="0.000001" step="any" placeholder="0.00" required />
+          </label>
+          <label>ค่าคอมมิชชัน
+            <input id="transactionCommission" name="commission" type="number" min="0" step="any" value="0" required />
+          </label>
+          <label class="transaction-note-field">หมายเหตุ
+            <input id="transactionNote" name="note" type="text" maxlength="300" placeholder="เพิ่มหมายเหตุ (ไม่บังคับ)" />
+          </label>
+          <button class="primary-button" type="submit">เพิ่มรายการ</button>
+        </form>
+        <p id="transactionFormStatus" class="form-status" role="status" aria-live="polite"></p>
+        <div class="table-scroll">
+          <table class="transactions-table">
+            <thead><tr><th>วันที่</th><th>สัญลักษณ์</th><th>ประเภท</th><th>จำนวน</th><th>ราคาซื้อขาย</th><th>ค่าคอมมิชชัน</th><th>หมายเหตุ</th></tr></thead>
+            <tbody id="transactionsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
     <footer><span>PORTFOLIO PULSE</span><span id="rowStatus">พร้อมใช้งาน</span></footer>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>

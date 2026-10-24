@@ -176,6 +176,38 @@ body {
   background: var(--line-light);
 }
 
+.tab-nav {
+  display: flex;
+  gap: 6px;
+  margin: 18px 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab-button {
+  padding: 9px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tab-button:hover,
+.tab-button.active {
+  color: var(--dark-accent);
+}
+
+.tab-button.active {
+  border-bottom-color: var(--green);
+}
+
+.tab-view[hidden] {
+  display: none;
+}
+
 /* Hero Section */
 .hero-row {
   display: flex;
@@ -376,6 +408,31 @@ body {
   .main-grid {
     grid-template-columns: 1fr;
   }
+
+  .transaction-form {
+    grid-template-columns: repeat(2, minmax(130px, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .toolbar {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .transaction-form {
+    grid-template-columns: 1fr;
+  }
+
+  .transaction-note-field {
+    grid-column: auto;
+  }
 }
 
 .donut-wrap {
@@ -498,6 +555,112 @@ body {
 
 .table-scroll {
   overflow-x: auto;
+}
+
+.transactions-panel {
+  margin-bottom: 24px;
+}
+
+.transaction-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 14px;
+  align-items: end;
+  margin-bottom: 8px;
+}
+
+.transaction-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.transaction-form input,
+.transaction-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.transaction-form input:focus,
+.transaction-form select:focus {
+  outline: 2px solid rgba(120, 157, 89, 0.25);
+  border-color: var(--green);
+}
+
+.transaction-note-field {
+  grid-column: span 2;
+}
+
+.primary-button {
+  justify-self: start;
+  padding: 9px 16px;
+  border: 1px solid var(--dark-accent);
+  border-radius: var(--radius-sm);
+  background: var(--dark-accent);
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary-button:hover {
+  background: #2b4038;
+}
+
+.form-status {
+  min-height: 20px;
+  margin: 4px 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.transactions-table {
+  min-width: 760px;
+}
+
+.transactions-table th:nth-child(n),
+.transactions-table td:nth-child(n) {
+  text-align: left;
+}
+
+.transactions-table th:nth-child(4),
+.transactions-table th:nth-child(5),
+.transactions-table th:nth-child(6),
+.transactions-table td:nth-child(4),
+.transactions-table td:nth-child(5),
+.transactions-table td:nth-child(6) {
+  text-align: right;
+}
+
+.transaction-type {
+  display: inline-block;
+  min-width: 44px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.transaction-type.buy {
+  background: #e8f3e5;
+  color: var(--green-positive);
+}
+
+.transaction-type.sell {
+  background: #fbe9e7;
+  color: var(--red-negative);
 }
 
 table {
