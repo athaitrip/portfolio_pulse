@@ -13,7 +13,7 @@
   <main class="app-shell">
     <header class="topbar">
       <div class="brand-mark"><span>PP</span><div><p>PORTFOLIO PULSE</p><h1>ภาพรวมพอร์ตลงทุน</h1></div></div>
-      <div class="toolbar"><span class="live-dot"></span><span id="updatedAt">กำลังโหลดข้อมูล...</span><label for="csvImport" class="import-button">นำเข้า CSV</label><input id="csvImport" type="file" accept=".csv,text/csv" hidden /><button id="reloadButton" class="icon-button" title="โหลดข้อมูลใหม่" aria-label="โหลดข้อมูลใหม่">↻</button></div>
+      <div class="toolbar"><span class="live-dot"></span><span id="updatedAt">ยังไม่ได้รีเฟรชราคาย้อนหลัง</span><label for="csvImport" class="import-button">นำเข้า CSV</label><input id="csvImport" type="file" accept=".csv,text/csv" hidden /><button id="refreshHistoryButton" class="refresh-button" type="button" title="เรียกข้อมูลย้อนหลังจาก Tiingo" aria-label="รีเฟรชราคาย้อนหลัง"><span class="refresh-icon" aria-hidden="true">↻</span><span id="refreshButtonLabel">รีเฟรชราคา</span></button></div>
     </header>
 
     <section class="hero-row">
@@ -39,7 +39,7 @@
 
     <section class="panel performance-history-panel" style="margin-bottom: 14px;">
       <div class="panel-heading">
-        <div><p class="eyebrow">HISTORICAL PERFORMANCE</p><h3>ผลตอบแทนเปรียบเทียบตลาด (Mock Data)</h3></div>
+        <div><p class="eyebrow">HISTORICAL PERFORMANCE</p><h3>ผลตอบแทนเปรียบเทียบตลาด</h3></div>
         <div class="timeframe-tools" style="display: flex; gap: 5px;">
           <button class="tf-btn active" data-tf="1D">1D</button>
           <button class="tf-btn" data-tf="1M">1M</button>
@@ -53,6 +53,7 @@
         <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;"><input type="checkbox" id="compareSP500"> เปรียบเทียบ S&P 500</label>
         <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;"><input type="checkbox" id="compareNASDAQ"> เปรียบเทียบ NASDAQ</label>
       </div>
+      <p id="historyStatus" class="history-status" role="status" aria-live="polite">กด “รีเฟรชราคา” เพื่อโหลดข้อมูลย้อนหลัง</p>
       <div class="history-chart-wrap" style="height: 300px; margin-top: 15px; position: relative;">
         <canvas id="historyChart"></canvas>
       </div>

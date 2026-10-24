@@ -28,7 +28,11 @@ function parseCSV(text) {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean);
   return lines.slice(1).map(line => {
     const fields = splitCSV(line); const typeIndex = fields.findLastIndex(value => ['BUY', 'SELL'].includes(clean(value).toUpperCase()));
-    return { symbol: clean(fields[0]), price: Number(fields[1]) || 0, change: Number(fields[4]) || 0, purchase: Number(fields[10]) || 0, quantity: Number(fields[11]) || 0, commission: Number(fields[12]) || 0, type: typeIndex > -1 ? clean(fields[typeIndex]).toUpperCase() : '' };
+    const rawTradeDate = clean(fields[9]);
+    const tradeDate = /^\d{8}$/.test(rawTradeDate)
+      ? `${rawTradeDate.slice(0, 4)}-${rawTradeDate.slice(4, 6)}-${rawTradeDate.slice(6, 8)}`
+      : rawTradeDate.replace(/\//g, '-');
+    return { symbol: clean(fields[0]), price: Number(fields[1]) || 0, change: Number(fields[4]) || 0, purchase: Number(fields[10]) || 0, quantity: Number(fields[11]) || 0, commission: Number(fields[12]) || 0, type: typeIndex > -1 ? clean(fields[typeIndex]).toUpperCase() : '', tradeDate };
   }).filter(row => row.symbol && row.price);
 }
 
@@ -102,13 +106,75 @@ function calculateReturns(dataArray, days) {
   }));
 }
 
+function calculatePortfolioReturns(transactions, priceData, dates) {
+  if (!dates.length) return [];
+
+  const pricesByDate = new Map();
+  Object.entries(priceData).forEach(([symbol, history]) => {
+    history.forEach(item => {
+      const date = item.date.slice(0, 10);
+      if (!pricesByDate.has(date)) pricesByDate.set(date, new Map());
+      pricesByDate.get(date).set(symbol, item.close);
+    });
+  });
+
+  const trades = transactions
+    .filter(row => row.tradeDate && (row.type === 'BUY' || row.type === 'SELL'))
+    .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate));
+  const quantities = new Map();
+  const prices = new Map();
+  let tradeIndex = 0;
+  let portfolioIndex = 1;
+  let previousPrices;
+
+  const applyTrade = trade => {
+    const quantity = quantities.get(trade.symbol) || 0;
+    const change = trade.type === 'BUY' ? trade.quantity : -trade.quantity;
+    quantities.set(trade.symbol, quantity + change);
+  };
+
+  while (tradeIndex < trades.length && trades[tradeIndex].tradeDate < dates[0]) {
+    applyTrade(trades[tradeIndex]);
+    tradeIndex += 1;
+  }
+
+  return dates.map(date => {
+    const dailyPrices = pricesByDate.get(date);
+    if (dailyPrices) dailyPrices.forEach((price, symbol) => {
+      if (Number.isFinite(price) && price > 0) prices.set(symbol, price);
+    });
+
+    if (previousPrices) {
+      let previousValue = 0;
+      let dailyGain = 0;
+      quantities.forEach((quantity, symbol) => {
+        const previousPrice = previousPrices.get(symbol);
+        const currentPrice = prices.get(symbol);
+        if (quantity > 0 && previousPrice > 0 && currentPrice > 0) {
+          previousValue += quantity * previousPrice;
+          dailyGain += quantity * (currentPrice - previousPrice);
+        }
+      });
+      if (previousValue > 0) portfolioIndex *= 1 + dailyGain / previousValue;
+    }
+
+    while (tradeIndex < trades.length && trades[tradeIndex].tradeDate <= date) {
+      applyTrade(trades[tradeIndex]);
+      tradeIndex += 1;
+    }
+
+    previousPrices = new Map(prices);
+    return (portfolioIndex - 1) * 100;
+  });
+}
+
 function renderHistoryChart() {
   if (charts.history) charts.history.destroy();
   const tf = document.querySelector('.tf-btn.active').dataset.tf;
   const showSP500 = document.querySelector('#compareSP500').checked;
   const showNASDAQ = document.querySelector('#compareNASDAQ').checked;
   
-  let days = 30; // 1M ~ 22 trading days, but we slice raw array, so approx
+  let days = 30;
   if (tf === '1D') days = 2;
   else if (tf === '1M') days = 22;
   else if (tf === '6M') days = 130;
@@ -122,56 +188,26 @@ function renderHistoryChart() {
   if (Object.keys(historicalData).length === 0) {
       charts.history = new Chart(document.querySelector('#historyChart'), {
           type: 'line', data: { labels: ['ไม่มีข้อมูล'], datasets: [] },
-          options: { plugins: { title: { display: true, text: 'ยังไม่มีข้อมูล (กรุณาใส่ API Key ใน .env หรือกำลังโหลด)' } } }
+          options: { plugins: { title: { display: true, text: 'กด “รีเฟรชราคา” เพื่อโหลดข้อมูลย้อนหลัง' } } }
       });
       return;
   }
 
-  const portfolio = aggregate(rows);
-  const totalValue = portfolio.reduce((sum, item) => sum + item.value, 0);
-  
-  let baseDates = historicalData['SPY'] ? historicalData['SPY'].map(d=>d.date).slice(-days) : [];
-  if (baseDates.length === 0) {
-      // fallback to any available symbol
-      const anySym = Object.keys(historicalData)[0];
-      if (anySym) baseDates = historicalData[anySym].map(d=>d.date).slice(-days);
-  }
-  
-  const portReturns = baseDates.map(dateStr => {
-      let totalReturnContrib = 0;
-      let weightSum = 0;
-      portfolio.forEach(item => {
-          const w = item.value / totalValue;
-          const hData = historicalData[item.symbol];
-          if(hData) {
-              const recent = hData.slice(-days);
-              if(recent.length > 0) {
-                  const basePrice = recent[0].close;
-                  const dayData = recent.find(d => d.date === dateStr);
-                  if (dayData) {
-                      const r = ((dayData.close - basePrice) / basePrice) * 100;
-                      totalReturnContrib += r * w;
-                      weightSum += w;
-                  }
-              }
-          }
-      });
-      // Normalize if some symbols lack data
-      return weightSum > 0 ? (totalReturnContrib / weightSum) : 0;
-  });
-
+  const allDates = [...new Set(Object.values(historicalData).flatMap(history => history.map(item => item.date.slice(0, 10))))].sort();
+  const baseDates = allDates.slice(-days);
+  const portReturns = calculatePortfolioReturns(rows, historicalData, baseDates);
   const datasets = [
     { label: 'My Portfolio', data: portReturns, borderColor: '#789d59', backgroundColor: 'rgba(120, 157, 89, 0.1)', fill: true, tension: 0.2, borderWidth: 2, pointRadius: 0 }
   ];
   
   if (showSP500 && historicalData['SPY']) {
-      const spyRet = calculateReturns(historicalData['SPY'], days);
-      datasets.push({ label: 'S&P 500 (SPY)', data: spyRet.map(d=>d.returnPct), borderColor: '#4d87a8', backgroundColor: 'transparent', borderDash: [5, 5], tension: 0.2, borderWidth: 1.5, pointRadius: 0 });
+      const spyReturns = new Map(calculateReturns(historicalData['SPY'], days).map(item => [item.date.slice(0, 10), item.returnPct]));
+      datasets.push({ label: 'S&P 500 (SPY)', data: baseDates.map(date => spyReturns.get(date) ?? null), borderColor: '#4d87a8', backgroundColor: 'transparent', borderDash: [5, 5], tension: 0.2, borderWidth: 1.5, pointRadius: 0 });
   }
   
   if (showNASDAQ && historicalData['QQQ']) {
-      const qqqRet = calculateReturns(historicalData['QQQ'], days);
-      datasets.push({ label: 'NASDAQ (QQQ)', data: qqqRet.map(d=>d.returnPct), borderColor: '#8c79a8', backgroundColor: 'transparent', borderDash: [2, 2], tension: 0.2, borderWidth: 1.5, pointRadius: 0 });
+      const qqqReturns = new Map(calculateReturns(historicalData['QQQ'], days).map(item => [item.date.slice(0, 10), item.returnPct]));
+      datasets.push({ label: 'NASDAQ (QQQ)', data: baseDates.map(date => qqqReturns.get(date) ?? null), borderColor: '#8c79a8', backgroundColor: 'transparent', borderDash: [2, 2], tension: 0.2, borderWidth: 1.5, pointRadius: 0 });
   }
 
   charts.history = new Chart(document.querySelector('#historyChart'), {
@@ -191,16 +227,51 @@ function renderHistoryChart() {
 
 async function fetchHistoricalData(symbols) {
     const fetchSymbols = [...new Set([...symbols, 'SPY', 'QQQ'])];
-    try {
-        const response = await fetch(`/api/history?symbols=${fetchSymbols.join(',')}`);
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error || 'Failed to fetch history');
-        }
-        historicalData = await response.json();
-    } catch (e) {
-        console.warn("Could not load historical data:", e.message);
+    const response = await fetch(`/api/history?symbols=${fetchSymbols.join(',')}`);
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to fetch history');
     }
+    return response.json();
+}
+
+async function refreshHistoricalData() {
+  const button = document.querySelector('#refreshHistoryButton');
+  const buttonLabel = document.querySelector('#refreshButtonLabel');
+  const status = document.querySelector('#historyStatus');
+  const updatedAt = document.querySelector('#updatedAt');
+
+  if (!rows.length) {
+    status.textContent = 'ยังไม่มีข้อมูลพอร์ตสำหรับเรียกข้อมูลราคา';
+    return;
+  }
+
+  button.disabled = true;
+  button.classList.add('is-loading');
+  button.setAttribute('aria-busy', 'true');
+  buttonLabel.textContent = 'กำลังโหลด...';
+  status.textContent = 'กำลังเรียกข้อมูลย้อนหลังจาก Tiingo...';
+  updatedAt.textContent = 'กำลังรีเฟรชราคาย้อนหลัง...';
+
+  try {
+    const data = await fetchHistoricalData(rows.map(item => item.symbol));
+    historicalData = data;
+    renderHistoryChart();
+
+    const latest = new Date();
+    const timestamp = latest.toLocaleDateString('th-TH') + ' ' + latest.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    updatedAt.textContent = `ราคาอัปเดต ${timestamp}`;
+    status.textContent = 'โหลดข้อมูลย้อนหลังเรียบร้อย';
+  } catch (error) {
+    console.error('Could not load historical data:', error);
+    updatedAt.textContent = 'รีเฟรชราคาย้อนหลังไม่สำเร็จ';
+    status.textContent = `เรียกข้อมูลไม่สำเร็จ: ${error.message}`;
+  } finally {
+    button.disabled = false;
+    button.classList.remove('is-loading');
+    button.removeAttribute('aria-busy');
+    buttonLabel.textContent = 'รีเฟรชราคา';
+  }
 }
 
 async function renderPortfolio(csvText) {
@@ -213,12 +284,10 @@ async function renderPortfolio(csvText) {
   renderCharts(portfolio);
   renderTable(portfolio);
 
-  document.querySelector('#rowStatus').textContent = 'กำลังโหลดข้อมูลย้อนหลัง...';
-  await fetchHistoricalData(portfolio.map(item => item.symbol));
+  historicalData = {};
   renderHistoryChart();
-
-  const latest = new Date();
-  document.querySelector('#updatedAt').textContent = `อัปเดต ${latest.toLocaleDateString('th-TH')} ${latest.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
+  document.querySelector('#updatedAt').textContent = 'ยังไม่ได้รีเฟรชราคาย้อนหลัง';
+  document.querySelector('#historyStatus').textContent = 'กด “รีเฟรชราคา” เพื่อโหลดข้อมูลย้อนหลัง';
 }
 
 async function loadDashboard() {
@@ -277,6 +346,6 @@ document.querySelector('#editTargetBtn').addEventListener('click', () => {
 
 document.querySelector('#searchInput').addEventListener('input', () => renderTable(aggregate(rows)));
 document.querySelector('#sortSelect').addEventListener('change', () => renderTable(aggregate(rows)));
-document.querySelector('#reloadButton').addEventListener('click', loadDashboard);
+document.querySelector('#refreshHistoryButton').addEventListener('click', refreshHistoricalData);
 
 loadDashboard();
