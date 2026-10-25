@@ -81,7 +81,10 @@
         </div>
         <form id="transactionForm" class="transaction-form">
           <label>สัญลักษณ์
-            <input id="transactionSymbol" name="symbol" type="text" placeholder="เช่น AAPL" maxlength="15" required />
+            <input id="transactionSymbol" name="symbol" type="text" placeholder="เช่น AAPL" maxlength="15" list="symbolSuggestions" autocomplete="off" required />
+            <datalist id="symbolSuggestions"></datalist>
+            <span id="symbolSearchHint" class="symbol-hint" role="status" aria-live="polite"></span>
+            <span id="symbolQuoteHint" class="symbol-hint" role="status" aria-live="polite"></span>
           </label>
           <label>วันที่
             <input id="transactionDate" name="date" type="date" required />
@@ -96,7 +99,7 @@
             <input id="transactionPrice" name="price" type="number" min="0.000001" step="any" placeholder="0.00" required />
           </label>
           <label>จำนวนหุ้น
-            <input id="transactionQuantity" name="quantity" type="number" min="0.000001" step="any" placeholder="0.00" required />
+            <input id="transactionQuantity" name="quantity" type="number" min="0.0000001" step="0.0000001" placeholder="0.0000000" required />
           </label>
           <label>ค่าคอมมิชชัน
             <input id="transactionCommission" name="commission" type="number" min="0" step="any" value="0" required />
@@ -104,12 +107,15 @@
           <label class="transaction-note-field">หมายเหตุ
             <input id="transactionNote" name="note" type="text" maxlength="300" placeholder="เพิ่มหมายเหตุ (ไม่บังคับ)" />
           </label>
-          <button class="primary-button" type="submit">เพิ่มรายการ</button>
+          <div class="transaction-form-actions">
+            <button id="transactionSubmitButton" class="primary-button" type="submit">เพิ่มรายการ</button>
+            <button id="cancelTransactionEditButton" class="secondary-button" type="button" hidden>ยกเลิกแก้ไข</button>
+          </div>
         </form>
         <p id="transactionFormStatus" class="form-status" role="status" aria-live="polite"></p>
         <div class="table-scroll">
           <table class="transactions-table">
-            <thead><tr><th>วันที่</th><th>สัญลักษณ์</th><th>ประเภท</th><th>จำนวน</th><th>ราคาซื้อขาย</th><th>ค่าคอมมิชชัน</th><th>หมายเหตุ</th></tr></thead>
+            <thead><tr><th>วันที่</th><th>สัญลักษณ์</th><th>ประเภท</th><th>จำนวน</th><th>ราคาซื้อขาย</th><th>ค่าคอมมิชชัน</th><th>หมายเหตุ</th><th>จัดการ</th></tr></thead>
             <tbody id="transactionsBody"></tbody>
           </table>
         </div>

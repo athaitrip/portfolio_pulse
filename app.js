@@ -1,15 +1,21 @@
 const DATA_FILE = 'portfolio.csv';
 const CSV_STORAGE_KEY = 'portfolio-dashboard.csv';
 const TRANSACTIONS_STORAGE_KEY = 'portfolio-dashboard.transactions';
+const TRANSACTION_EDITS_STORAGE_KEY = 'portfolio-dashboard.transaction-edits';
 const palette = ['#17231f', '#789d59', '#4d87a8', '#d98c62', '#8c79a8', '#c5b75c', '#6b9b96', '#b66e75'];
 let rows = [];
 let charts = {};
 let targetPortfolioValue = 1000000;
 let targetAllocations = {};
 let historicalData = {};
+let currentQuotes = new Map();
+let currentQuoteRequests = new Map();
+let editingTransactionId = null;
+let symbolSearchTimer;
+let symbolSearchController;
 
 const money = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value || 0);
-const number = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(value || 0);
+const number = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 7 }).format(value || 0);
 const signedMoney = value => `${value >= 0 ? '+' : '-'}${money(Math.abs(value))}`;
 const signedPercent = value => `${value >= 0 ? '+' : ''}${(value || 0).toFixed(2)}%`;
 const clean = value => (value || '').trim();
@@ -27,13 +33,13 @@ function splitCSV(line) {
 
 function parseCSV(text) {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean);
-  return lines.slice(1).map(line => {
+  return lines.slice(1).map((line, index) => {
     const fields = splitCSV(line); const typeIndex = fields.findLastIndex(value => ['BUY', 'SELL'].includes(clean(value).toUpperCase()));
     const rawTradeDate = clean(fields[9]);
     const tradeDate = /^\d{8}$/.test(rawTradeDate)
       ? `${rawTradeDate.slice(0, 4)}-${rawTradeDate.slice(4, 6)}-${rawTradeDate.slice(6, 8)}`
       : rawTradeDate.replace(/\//g, '-');
-    return { symbol: clean(fields[0]), price: Number(fields[1]) || 0, change: Number(fields[4]) || 0, purchase: Number(fields[10]) || 0, quantity: Number(fields[11]) || 0, commission: Number(fields[12]) || 0, type: typeIndex > -1 ? clean(fields[typeIndex]).toUpperCase() : '', tradeDate, note: clean(fields[15]) };
+    return { id: `csv-${index}`, source: 'csv', symbol: clean(fields[0]), price: Number(fields[1]) || 0, change: Number(fields[4]) || 0, purchase: Number(fields[10]) || 0, quantity: Number(fields[11]) || 0, commission: Number(fields[12]) || 0, type: typeIndex > -1 ? clean(fields[typeIndex]).toUpperCase() : '', tradeDate, note: clean(fields[15]) };
   }).filter(row => row.symbol && row.price);
 }
 
@@ -49,7 +55,26 @@ function loadSavedTransactions() {
   )) {
     throw new Error('ข้อมูลรายการซื้อขายที่บันทึกไว้ไม่ถูกต้อง กรุณานำเข้าไฟล์ CSV ใหม่');
   }
-  return transactions;
+  return transactions.map((row, index) => ({
+    ...row,
+    id: row.id || `saved-${index}`,
+    source: 'saved'
+  }));
+}
+
+function loadTransactionEdits() {
+  const saved = localStorage.getItem(TRANSACTION_EDITS_STORAGE_KEY);
+  if (!saved) return {};
+
+  const edits = JSON.parse(saved);
+  if (!edits || Array.isArray(edits) || typeof edits !== 'object') {
+    throw new Error('ข้อมูลการแก้ไขรายการซื้อขายไม่ถูกต้อง');
+  }
+  return edits;
+}
+
+function applyTransactionEdits(transactions, edits) {
+  return transactions.map(row => edits[row.id] ? { ...row, ...edits[row.id] } : row);
 }
 
 function aggregate(data) {
@@ -124,7 +149,7 @@ function renderTransactions() {
   if (!transactionRows.length) {
     const tableRow = document.createElement('tr');
     const cell = document.createElement('td');
-    cell.colSpan = 7;
+    cell.colSpan = 8;
     cell.className = 'empty';
     cell.textContent = 'ยังไม่มีรายการซื้อขาย';
     tableRow.append(cell);
@@ -157,11 +182,188 @@ function renderTransactions() {
       tableRow.append(cell);
     });
 
+    const actionCell = document.createElement('td');
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'edit-transaction-button';
+    editButton.dataset.transactionId = row.id;
+    editButton.textContent = 'แก้ไข';
+    actionCell.append(editButton);
+    tableRow.append(actionCell);
     body.append(tableRow);
+  });
+
+  body.querySelectorAll('.edit-transaction-button').forEach(button => {
+    button.addEventListener('click', () => startEditingTransaction(button.dataset.transactionId));
   });
 }
 
-function addTransaction(event) {
+function startEditingTransaction(id) {
+  const transaction = rows.find(row => row.id === id);
+  if (!transaction) return;
+
+  editingTransactionId = id;
+  const form = document.querySelector('#transactionForm');
+  form.elements.symbol.value = transaction.symbol;
+  form.elements.date.value = transaction.tradeDate;
+  form.elements.type.value = transaction.type;
+  form.elements.price.value = transaction.purchase;
+  form.elements.quantity.value = transaction.quantity;
+  form.elements.commission.value = transaction.commission;
+  form.elements.note.value = transaction.note || '';
+  document.querySelector('#transactionSubmitButton').textContent = 'บันทึกการแก้ไข';
+  document.querySelector('#cancelTransactionEditButton').hidden = false;
+  document.querySelector('#transactionFormStatus').textContent = `กำลังแก้ไขรายการ ${transaction.symbol}`;
+  document.querySelector('#transactionsView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cancelTransactionEdit() {
+  editingTransactionId = null;
+  const form = document.querySelector('#transactionForm');
+  form.reset();
+  form.elements.date.value = getLocalDateString();
+  form.elements.commission.value = '0';
+  document.querySelector('#transactionSubmitButton').textContent = 'เพิ่มรายการ';
+  document.querySelector('#cancelTransactionEditButton').hidden = true;
+  document.querySelector('#transactionFormStatus').textContent = '';
+  document.querySelector('#symbolSearchHint').textContent = '';
+  document.querySelector('#symbolQuoteHint').textContent = '';
+}
+
+async function searchTransactionSymbols(query) {
+  const datalist = document.querySelector('#symbolSuggestions');
+  const hint = document.querySelector('#symbolSearchHint');
+  if (symbolSearchController) symbolSearchController.abort();
+  clearTimeout(symbolSearchTimer);
+
+  const normalizedQuery = query.trim().toUpperCase();
+  if (normalizedQuery.length < 2) {
+    datalist.replaceChildren();
+    hint.textContent = '';
+    return;
+  }
+
+  const localSymbols = [...new Set(rows.map(row => row.symbol))]
+    .filter(symbol => symbol.includes(normalizedQuery))
+    .map(symbol => ({ symbol, name: '' }));
+  datalist.replaceChildren(...localSymbols.map(item => {
+    const option = document.createElement('option');
+    option.value = item.symbol;
+    return option;
+  }));
+  hint.textContent = 'กำลังค้นหาสัญลักษณ์...';
+
+  symbolSearchTimer = setTimeout(async () => {
+    const controller = new AbortController();
+    symbolSearchController = controller;
+    try {
+      const response = await fetch(`/api/symbols?query=${encodeURIComponent(normalizedQuery)}`, { signal: controller.signal });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'ค้นหาสัญลักษณ์ไม่สำเร็จ');
+      const options = new Map([...localSymbols, ...result].map(item => [item.symbol, item]));
+      datalist.replaceChildren(...[...options.values()].map(item => {
+        const option = document.createElement('option');
+        option.value = item.symbol;
+        option.label = item.name ? `${item.symbol} — ${item.name}` : item.symbol;
+        return option;
+      }));
+      hint.textContent = result.length ? 'เลือกสัญลักษณ์จากคำแนะนำ หรือพิมพ์ต่อ' : 'ไม่พบคำแนะนำ ใช้สัญลักษณ์ที่พิมพ์ได้';
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      console.error('Could not search symbols:', error);
+      hint.textContent = `ค้นหาคำแนะนำไม่ได้: ${error.message}`;
+    }
+  }, 400);
+}
+
+function loadCachedQuotes() {
+  const saved = localStorage.getItem('portfolio-dashboard.quotes');
+  if (!saved) return;
+  const quotes = JSON.parse(saved);
+  if (!quotes || Array.isArray(quotes) || typeof quotes !== 'object') {
+    throw new Error('ข้อมูลราคาหุ้นที่บันทึกไว้ไม่ถูกต้อง');
+  }
+  Object.entries(quotes).forEach(([symbol, quote]) => {
+    if (quote && Number.isFinite(quote.price) && quote.price > 0 && typeof quote.date === 'string') {
+      currentQuotes.set(symbol, quote);
+    }
+  });
+}
+
+function saveCachedQuotes() {
+  try {
+    localStorage.setItem('portfolio-dashboard.quotes', JSON.stringify(Object.fromEntries(currentQuotes)));
+  } catch (error) {
+    console.error('Could not save cached quotes:', error);
+    document.querySelector('#symbolQuoteHint').textContent = `บันทึกราคาล่าสุดไม่สำเร็จ: ${error.message}`;
+  }
+}
+
+function renderPortfolioData() {
+  const portfolio = aggregate(rows);
+  updateText(portfolio);
+  renderCharts(portfolio);
+  renderTable(portfolio);
+  renderHistoryChart();
+  renderTransactions();
+}
+
+function applyQuoteToRows(quote) {
+  rows = rows.map(row => row.symbol === quote.symbol
+    ? { ...row, price: quote.price, change: quote.change }
+    : row);
+  renderPortfolioData();
+}
+
+async function fetchSymbolQuote(symbol) {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  const cached = currentQuotes.get(normalizedSymbol);
+  if (cached && Date.now() - cached.fetchedAt < 15 * 60 * 1000) return cached;
+
+  if (currentQuoteRequests.has(normalizedSymbol)) return currentQuoteRequests.get(normalizedSymbol);
+
+  const request = (async () => {
+    const response = await fetch(`/api/quote?symbol=${encodeURIComponent(normalizedSymbol)}`);
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `โหลดราคา ${normalizedSymbol} ไม่สำเร็จ`);
+    if (!Number.isFinite(result.price) || result.price <= 0) {
+      throw new Error(`ไม่พบราคาล่าสุดของ ${normalizedSymbol}`);
+    }
+
+    const quote = { ...result, fetchedAt: Date.now() };
+    currentQuotes.set(normalizedSymbol, quote);
+    saveCachedQuotes();
+    applyQuoteToRows(quote);
+    return quote;
+  })();
+  currentQuoteRequests.set(normalizedSymbol, request);
+  try {
+    return await request;
+  } finally {
+    currentQuoteRequests.delete(normalizedSymbol);
+  }
+}
+
+async function refreshSymbolQuote() {
+  const symbol = clean(document.querySelector('#transactionSymbol').value).toUpperCase();
+  const hint = document.querySelector('#symbolQuoteHint');
+  if (!symbol || !/^[A-Z0-9.-]+$/.test(symbol)) return;
+
+  hint.textContent = 'กำลังโหลดราคาล่าสุด...';
+  try {
+    const quote = await fetchSymbolQuote(symbol);
+    if (clean(document.querySelector('#transactionSymbol').value).toUpperCase() === symbol) {
+      hint.textContent = `ราคาปิดล่าสุดจาก Tiingo ${quote.date.slice(0, 10)}: ${money(quote.price)}`;
+    }
+  } catch (error) {
+    console.error('Could not load current quote:', error);
+    if (clean(document.querySelector('#transactionSymbol').value).toUpperCase() === symbol) {
+      hint.textContent = `โหลดราคาหุ้นไม่ได้: ${error.message}`;
+    }
+  }
+}
+
+async function submitTransaction(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const status = document.querySelector('#transactionFormStatus');
@@ -185,19 +387,44 @@ function addTransaction(event) {
     return;
   }
 
+  const editedRow = editingTransactionId
+    ? rows.find(row => row.id === editingTransactionId)
+    : null;
+  if (editingTransactionId && !editedRow) {
+    status.textContent = 'ไม่พบรายการที่ต้องการแก้ไข กรุณาโหลดหน้าใหม่';
+    return;
+  }
+
   if (type === 'SELL') {
-    const holding = aggregate(rows).find(item => item.symbol === symbol);
+    const validationRows = editedRow
+      ? rows.filter(row => row.id !== editedRow.id)
+      : rows;
+    const holding = aggregate(validationRows).find(item => item.symbol === symbol);
     if (!holding || quantity > holding.quantity + 0.00000001) {
       status.textContent = 'จำนวนขายมากกว่าหุ้นที่ถืออยู่';
       return;
     }
   }
 
-  const currentQuote = rows.find(row => row.symbol === symbol);
+  const submitButton = document.querySelector('#transactionSubmitButton');
+  submitButton.disabled = true;
+  status.textContent = 'กำลังตรวจสอบราคาล่าสุด...';
+  let quote;
+  try {
+    quote = await fetchSymbolQuote(symbol);
+  } catch (error) {
+    console.error('Could not verify current quote:', error);
+    status.textContent = `บันทึกรายการไม่ได้ เพราะโหลดราคาปัจจุบันไม่สำเร็จ: ${error.message}`;
+    submitButton.disabled = false;
+    return;
+  }
+
   const transaction = {
+    id: editedRow ? editedRow.id : `saved-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    source: editedRow ? editedRow.source : 'saved',
     symbol,
-    price: currentQuote ? currentQuote.price : purchase,
-    change: currentQuote ? currentQuote.change : 0,
+    price: quote.price,
+    change: quote.change,
     purchase,
     quantity,
     commission,
@@ -205,27 +432,34 @@ function addTransaction(event) {
     tradeDate,
     note
   };
-  let nextSavedTransactions;
   try {
-    nextSavedTransactions = [...loadSavedTransactions(), transaction];
-    localStorage.setItem(TRANSACTIONS_STORAGE_KEY, JSON.stringify(nextSavedTransactions));
+    if (editedRow && editedRow.source === 'csv') {
+      const edits = loadTransactionEdits();
+      edits[editedRow.id] = { symbol, purchase, quantity, commission, type, tradeDate, note };
+      localStorage.setItem(TRANSACTION_EDITS_STORAGE_KEY, JSON.stringify(edits));
+    } else {
+      const savedTransactions = loadSavedTransactions();
+      const nextTransactions = editedRow
+        ? savedTransactions.map(row => row.id === editedRow.id ? transaction : row)
+        : [...savedTransactions, transaction];
+      localStorage.setItem(TRANSACTIONS_STORAGE_KEY, JSON.stringify(nextTransactions));
+    }
   } catch (error) {
     console.error('Could not save transaction:', error);
     status.textContent = `บันทึกรายการไม่สำเร็จ: ${error.message || 'ข้อมูลที่บันทึกไว้ไม่ถูกต้อง'}`;
+    submitButton.disabled = false;
     return;
   }
 
-  rows.push(transaction);
-  const portfolio = aggregate(rows);
-  updateText(portfolio);
-  renderCharts(portfolio);
-  renderTable(portfolio);
-  renderHistoryChart();
-  renderTransactions();
-  status.textContent = 'เพิ่มรายการซื้อขายเรียบร้อย และบันทึกไว้ในอุปกรณ์นี้';
-  form.reset();
-  form.elements.date.value = getLocalDateString();
-  form.elements.commission.value = '0';
+  rows = editedRow
+    ? rows.map(row => row.id === editedRow.id ? transaction : row)
+    : [...rows, transaction];
+  renderPortfolioData();
+  cancelTransactionEdit();
+  status.textContent = editedRow
+    ? 'แก้ไขรายการซื้อขายเรียบร้อย และบันทึกไว้ในอุปกรณ์นี้'
+    : 'เพิ่มรายการซื้อขายเรียบร้อย และบันทึกไว้ในอุปกรณ์นี้';
+  submitButton.disabled = false;
 }
 
 function getLocalDateString() {
@@ -396,7 +630,24 @@ async function refreshHistoricalData() {
   try {
     const data = await fetchHistoricalData(rows.map(item => item.symbol));
     historicalData = data;
-    renderHistoryChart();
+    Object.entries(data).forEach(([symbol, history]) => {
+      const latest = history[history.length - 1];
+      if (latest && Number.isFinite(latest.price) && latest.price > 0) {
+        currentQuotes.set(symbol, {
+          symbol,
+          price: latest.price,
+          change: history.length > 1 ? latest.price - history[history.length - 2].price : 0,
+          date: latest.date,
+          fetchedAt: Date.now()
+        });
+      }
+    });
+    rows = rows.map(row => {
+      const quote = currentQuotes.get(row.symbol);
+      return quote ? { ...row, price: quote.price, change: quote.change } : row;
+    });
+    saveCachedQuotes();
+    renderPortfolioData();
 
     const latest = new Date();
     const timestamp = latest.toLocaleDateString('th-TH') + ' ' + latest.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
@@ -414,11 +665,15 @@ async function refreshHistoricalData() {
   }
 }
 
-async function renderPortfolio(csvText, extraTransactions = []) {
+async function renderPortfolio(csvText, extraTransactions = [], transactionEdits = {}) {
   const importedRows = parseCSV(csvText);
   if (!importedRows.length) throw new Error('ไฟล์ CSV ไม่มีรายการที่อ่านได้');
 
-  rows = [...importedRows, ...extraTransactions];
+  rows = [...applyTransactionEdits(importedRows, transactionEdits), ...extraTransactions]
+    .map(row => {
+      const quote = currentQuotes.get(row.symbol);
+      return quote ? { ...row, price: quote.price, change: quote.change } : row;
+    });
   const portfolio = aggregate(rows);
   updateText(portfolio);
   renderCharts(portfolio);
@@ -435,13 +690,15 @@ async function loadDashboard() {
   try { 
       const savedCSV = localStorage.getItem(CSV_STORAGE_KEY);
       const savedTransactions = loadSavedTransactions();
+      const transactionEdits = loadTransactionEdits();
+      loadCachedQuotes();
       let csvText = savedCSV;
       if (!csvText) {
         const response = await fetch(DATA_FILE);
         if (!response.ok) throw new Error('โหลดไฟล์ไม่สำเร็จ');
         csvText = await response.text();
       }
-      await renderPortfolio(csvText, savedTransactions);
+      await renderPortfolio(csvText, savedTransactions, transactionEdits);
       document.querySelector('#rowStatus').textContent = savedCSV
         ? 'แสดงข้อมูล CSV ที่บันทึกไว้ในอุปกรณ์นี้'
         : 'แสดงข้อมูลจาก portfolio.csv';
@@ -459,9 +716,12 @@ document.querySelector('#csvImport').addEventListener('change', async event => {
     const csvText = await file.text();
     if (!parseCSV(csvText).length) throw new Error('ไฟล์ CSV ไม่มีรายการที่อ่านได้');
     const savedTransactions = loadSavedTransactions();
-    if (savedTransactions.length && !confirm(`การนำเข้า CSV ใหม่จะลบรายการที่เพิ่มเอง ${savedTransactions.length} รายการ ต้องการดำเนินการต่อหรือไม่?`)) return;
+    const transactionEdits = loadTransactionEdits();
+    const editedCount = Object.keys(transactionEdits).length;
+    if ((savedTransactions.length || editedCount) && !confirm(`การนำเข้า CSV ใหม่จะลบรายการที่เพิ่มเอง ${savedTransactions.length} รายการ และการแก้ไขเดิม ${editedCount} รายการ ต้องการดำเนินการต่อหรือไม่?`)) return;
     localStorage.setItem(CSV_STORAGE_KEY, csvText);
     localStorage.removeItem(TRANSACTIONS_STORAGE_KEY);
+    localStorage.removeItem(TRANSACTION_EDITS_STORAGE_KEY);
     await renderPortfolio(csvText);
     document.querySelector('#rowStatus').textContent = `นำเข้าและบันทึก ${file.name} ไว้ในอุปกรณ์นี้`;
   } catch (error) {
@@ -492,8 +752,11 @@ document.querySelector('#editTargetBtn').addEventListener('click', () => {
 document.querySelector('#searchInput').addEventListener('input', () => renderTable(aggregate(rows)));
 document.querySelector('#sortSelect').addEventListener('change', () => renderTable(aggregate(rows)));
 document.querySelector('#refreshHistoryButton').addEventListener('click', refreshHistoricalData);
-document.querySelector('#transactionForm').addEventListener('submit', addTransaction);
+document.querySelector('#transactionForm').addEventListener('submit', submitTransaction);
 document.querySelector('#transactionDate').value = getLocalDateString();
+document.querySelector('#transactionSymbol').addEventListener('input', event => searchTransactionSymbols(event.target.value));
+document.querySelector('#transactionSymbol').addEventListener('blur', refreshSymbolQuote);
+document.querySelector('#cancelTransactionEditButton').addEventListener('click', cancelTransactionEdit);
 
 document.querySelectorAll('.tab-button').forEach(button => {
   button.addEventListener('click', () => {
