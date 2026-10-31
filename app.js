@@ -145,40 +145,56 @@ function updateDipCalculator() {
   const quote = document.querySelector('#dipCurrentPrice');
   const buyPriceOutput = document.querySelector('#dipBuyPrice');
   const investmentOutput = document.querySelector('#dipInvestment');
+  const existingQuantityOutput = document.querySelector('#dipExistingQuantity');
+  const existingValueOutput = document.querySelector('#dipExistingValue');
+  const totalQuantityOutput = document.querySelector('#dipTotalQuantity');
+  const averageCostOutput = document.querySelector('#dipAverageCost');
+  const totalCostOutput = document.querySelector('#dipTotalCost');
+  const valueAtBuyOutput = document.querySelector('#dipValueAtBuy');
   const scenarioBody = document.querySelector('#dipScenarioBody');
   const status = document.querySelector('#dipCalculatorStatus');
 
   scenarioBody.replaceChildren();
+  [
+    buyPriceOutput, investmentOutput, existingQuantityOutput, existingValueOutput,
+    totalQuantityOutput, averageCostOutput, totalCostOutput, valueAtBuyOutput
+  ].forEach(output => { output.textContent = '—'; });
   if (!holding) {
     quote.textContent = 'ราคาปัจจุบัน —';
-    buyPriceOutput.textContent = '—';
-    investmentOutput.textContent = '—';
     status.textContent = 'ยังไม่มีหุ้นที่ถือครองสำหรับคำนวณ';
     return;
   }
 
   quote.textContent = `ราคาปัจจุบัน ${money(holding.price)}`;
+  existingQuantityOutput.textContent = number(holding.quantity);
+  existingValueOutput.textContent = money(holding.value);
   if (!Number.isFinite(dropPercent) || dropPercent < 0 || dropPercent >= 100 ||
       !Number.isFinite(quantity) || quantity <= 0) {
-    buyPriceOutput.textContent = '—';
-    investmentOutput.textContent = '—';
     status.textContent = 'กรุณาระบุเปอร์เซ็นต์ที่ลด (0 ถึงน้อยกว่า 100) และจำนวนหุ้นที่มากกว่า 0';
     return;
   }
 
   const buyPrice = holding.price * (1 - dropPercent / 100);
   const investment = buyPrice * quantity;
+  const totalQuantity = holding.quantity + quantity;
+  const totalCost = holding.cost + investment;
+  const averageCost = totalCost / totalQuantity;
   buyPriceOutput.textContent = money(buyPrice);
   investmentOutput.textContent = money(investment);
+  totalQuantityOutput.textContent = number(totalQuantity);
+  averageCostOutput.textContent = money(averageCost);
+  totalCostOutput.textContent = money(totalCost);
+  valueAtBuyOutput.textContent = money(totalQuantity * buyPrice);
 
   [10, 20, 30].forEach(gainPercent => {
     const targetPrice = buyPrice * (1 + gainPercent / 100);
-    const profit = (targetPrice - buyPrice) * quantity;
+    const totalValue = targetPrice * totalQuantity;
+    const profit = totalValue - totalCost;
     const row = document.createElement('tr');
-    [ `+${gainPercent}%`, money(targetPrice), signedMoney(profit) ].forEach((value, index) => {
+    [ `+${gainPercent}%`, money(targetPrice), money(totalValue), signedMoney(profit) ].forEach((value, index) => {
       const cell = document.createElement('td');
       cell.textContent = value;
-      if (index === 2) cell.className = 'positive';
+      if (index === 3) cell.className = profit >= 0 ? 'positive' : 'negative';
       row.append(cell);
     });
     scenarioBody.append(row);

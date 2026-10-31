@@ -90,12 +90,18 @@
         </div>
         <div class="calculator-results">
           <div class="calculator-summary">
+            <div><span>จำนวนหุ้นเดิม</span><strong id="dipExistingQuantity">—</strong></div>
+            <div><span>มูลค่าหุ้นเดิม ณ ราคาปัจจุบัน</span><strong id="dipExistingValue">—</strong></div>
             <div><span>ราคาซื้อเมื่อราคาลด</span><strong id="dipBuyPrice">—</strong></div>
             <div><span>มูลค่าที่ต้องใช้ซื้อ</span><strong id="dipInvestment">—</strong></div>
+            <div><span>จำนวนหุ้นรวมหลังซื้อ</span><strong id="dipTotalQuantity">—</strong></div>
+            <div><span>ต้นทุนเฉลี่ยใหม่ต่อหุ้น</span><strong id="dipAverageCost">—</strong></div>
+            <div><span>ต้นทุนรวมหลังซื้อ</span><strong id="dipTotalCost">—</strong></div>
+            <div><span>มูลค่าหุ้นรวม ณ ราคาซื้อ</span><strong id="dipValueAtBuy">—</strong></div>
           </div>
           <div class="table-scroll">
             <table class="scenario-table">
-              <thead><tr><th>ราคาขึ้นจากราคาซื้อ</th><th>ราคาหุ้นเป้าหมาย</th><th>กำไรโดยประมาณ</th></tr></thead>
+              <thead><tr><th>ราคาขึ้นจากราคาซื้อ</th><th>ราคาหุ้นเป้าหมาย</th><th>มูลค่าหุ้นรวม</th><th>กำไร/ขาดทุนรวม</th></tr></thead>
               <tbody id="dipScenarioBody"></tbody>
             </table>
           </div>
