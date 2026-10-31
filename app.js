@@ -136,6 +136,85 @@ function renderTable(portfolio) {
   document.querySelector('#rowStatus').textContent = `แสดง ${filtered.length} จาก ${portfolio.length} สินทรัพย์`;
 }
 
+function updateDipCalculator() {
+  const portfolio = aggregate(rows);
+  const symbol = document.querySelector('#dipSymbol').value;
+  const holding = portfolio.find(item => item.symbol === symbol);
+  const dropPercent = Number(document.querySelector('#dipPercent').value);
+  const quantity = Number(document.querySelector('#dipQuantity').value);
+  const quote = document.querySelector('#dipCurrentPrice');
+  const buyPriceOutput = document.querySelector('#dipBuyPrice');
+  const investmentOutput = document.querySelector('#dipInvestment');
+  const scenarioBody = document.querySelector('#dipScenarioBody');
+  const status = document.querySelector('#dipCalculatorStatus');
+
+  scenarioBody.replaceChildren();
+  if (!holding) {
+    quote.textContent = 'ราคาปัจจุบัน —';
+    buyPriceOutput.textContent = '—';
+    investmentOutput.textContent = '—';
+    status.textContent = 'ยังไม่มีหุ้นที่ถือครองสำหรับคำนวณ';
+    return;
+  }
+
+  quote.textContent = `ราคาปัจจุบัน ${money(holding.price)}`;
+  if (!Number.isFinite(dropPercent) || dropPercent < 0 || dropPercent >= 100 ||
+      !Number.isFinite(quantity) || quantity <= 0) {
+    buyPriceOutput.textContent = '—';
+    investmentOutput.textContent = '—';
+    status.textContent = 'กรุณาระบุเปอร์เซ็นต์ที่ลด (0 ถึงน้อยกว่า 100) และจำนวนหุ้นที่มากกว่า 0';
+    return;
+  }
+
+  const buyPrice = holding.price * (1 - dropPercent / 100);
+  const investment = buyPrice * quantity;
+  buyPriceOutput.textContent = money(buyPrice);
+  investmentOutput.textContent = money(investment);
+
+  [10, 20, 30].forEach(gainPercent => {
+    const targetPrice = buyPrice * (1 + gainPercent / 100);
+    const profit = (targetPrice - buyPrice) * quantity;
+    const row = document.createElement('tr');
+    [ `+${gainPercent}%`, money(targetPrice), signedMoney(profit) ].forEach((value, index) => {
+      const cell = document.createElement('td');
+      cell.textContent = value;
+      if (index === 2) cell.className = 'positive';
+      row.append(cell);
+    });
+    scenarioBody.append(row);
+  });
+
+  status.textContent = `คำนวณจากราคาหุ้น ${symbol} ปัจจุบัน หากราคาลดลง ${dropPercent}% แล้วซื้อ ${number(quantity)} หุ้น`;
+}
+
+function renderDipCalculator(portfolio) {
+  const select = document.querySelector('#dipSymbol');
+  const previousSymbol = select.value;
+  select.replaceChildren();
+
+  if (!portfolio.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'ไม่มีหุ้นในพอร์ต';
+    select.append(option);
+    select.disabled = true;
+    updateDipCalculator();
+    return;
+  }
+
+  portfolio.forEach(item => {
+    const option = document.createElement('option');
+    option.value = item.symbol;
+    option.textContent = item.symbol;
+    select.append(option);
+  });
+  select.disabled = false;
+  select.value = portfolio.some(item => item.symbol === previousSymbol)
+    ? previousSymbol
+    : portfolio[0].symbol;
+  updateDipCalculator();
+}
+
 function renderTransactions() {
   const transactionRows = rows
     .filter(row => row.type === 'BUY' || row.type === 'SELL')
@@ -304,6 +383,7 @@ function renderPortfolioData() {
   updateText(portfolio);
   renderCharts(portfolio);
   renderTable(portfolio);
+  renderDipCalculator(portfolio);
   renderHistoryChart();
   renderTransactions();
 }
@@ -678,6 +758,7 @@ async function renderPortfolio(csvText, extraTransactions = [], transactionEdits
   updateText(portfolio);
   renderCharts(portfolio);
   renderTable(portfolio);
+  renderDipCalculator(portfolio);
   renderTransactions();
 
   historicalData = {};
@@ -751,6 +832,9 @@ document.querySelector('#editTargetBtn').addEventListener('click', () => {
 
 document.querySelector('#searchInput').addEventListener('input', () => renderTable(aggregate(rows)));
 document.querySelector('#sortSelect').addEventListener('change', () => renderTable(aggregate(rows)));
+document.querySelector('#dipSymbol').addEventListener('change', updateDipCalculator);
+document.querySelector('#dipPercent').addEventListener('input', updateDipCalculator);
+document.querySelector('#dipQuantity').addEventListener('input', updateDipCalculator);
 document.querySelector('#refreshHistoryButton').addEventListener('click', refreshHistoricalData);
 document.querySelector('#transactionForm').addEventListener('submit', submitTransaction);
 document.querySelector('#transactionDate').value = getLocalDateString();

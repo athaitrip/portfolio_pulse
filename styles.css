@@ -409,6 +409,14 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .calculator-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .calculator-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .transaction-form {
     grid-template-columns: repeat(2, minmax(130px, 1fr));
   }
@@ -432,6 +440,15 @@ body {
 
   .transaction-note-field {
     grid-column: auto;
+  }
+
+  .calculator-controls,
+  .calculator-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .dip-calculator-panel {
+    padding: 18px 16px;
   }
 }
 
@@ -501,6 +518,113 @@ body {
 .chart-wrap {
   position: relative;
   height: 240px;
+}
+
+.dip-calculator-panel {
+  margin-bottom: 24px;
+}
+
+.calculator-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
+  gap: 24px;
+}
+
+.calculator-controls {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 14px;
+}
+
+.calculator-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.calculator-controls input,
+.calculator-controls select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.calculator-controls input:focus,
+.calculator-controls select:focus {
+  outline: 2px solid rgba(120, 157, 89, 0.25);
+  border-color: var(--green);
+}
+
+.calculator-hint {
+  min-height: 16px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.calculator-results {
+  min-width: 0;
+}
+
+.calculator-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.calculator-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.calculator-summary span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.calculator-summary strong {
+  color: var(--dark-accent);
+  font-family: 'DM Mono', monospace;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.scenario-table {
+  min-width: 390px;
+}
+
+.scenario-table th,
+.scenario-table td {
+  text-align: right;
+}
+
+.scenario-table th:first-child,
+.scenario-table td:first-child {
+  text-align: left;
+}
+
+.scenario-table td {
+  padding: 11px 14px;
+}
+
+.calculator-results > .calculator-hint {
+  margin-top: 8px;
 }
 
 /* Holdings Table */

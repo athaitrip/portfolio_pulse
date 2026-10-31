@@ -70,6 +70,40 @@
       <article class="panel performance-panel"><div class="panel-heading"><div><p class="eyebrow">PERFORMANCE</p><h3>กำไร / ขาดทุนรายตัว</h3></div><span class="panel-meta">เรียงจากสูงไปต่ำ</span></div><div class="chart-wrap"><canvas id="performanceChart"></canvas></div></article>
     </section>
 
+    <section class="panel dip-calculator-panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">BUY THE DIP</p><h3>คำนวณแผนซื้อเมื่อราคาลง</h3></div>
+        <span class="panel-meta">คำนวณจากราคาปัจจุบัน</span>
+      </div>
+      <div class="calculator-layout">
+        <div class="calculator-controls">
+          <label for="dipSymbol">เลือกหุ้น
+            <select id="dipSymbol"></select>
+            <span id="dipCurrentPrice" class="calculator-hint">ราคาปัจจุบัน —</span>
+          </label>
+          <label for="dipPercent">ราคาลดลงจากปัจจุบัน (%)
+            <input id="dipPercent" type="number" min="0" max="99.99" step="0.1" value="10" inputmode="decimal" />
+          </label>
+          <label for="dipQuantity">จำนวนหุ้นที่ต้องการซื้อ
+            <input id="dipQuantity" type="number" min="0.0000001" step="any" value="1" inputmode="decimal" />
+          </label>
+        </div>
+        <div class="calculator-results">
+          <div class="calculator-summary">
+            <div><span>ราคาซื้อเมื่อราคาลด</span><strong id="dipBuyPrice">—</strong></div>
+            <div><span>มูลค่าที่ต้องใช้ซื้อ</span><strong id="dipInvestment">—</strong></div>
+          </div>
+          <div class="table-scroll">
+            <table class="scenario-table">
+              <thead><tr><th>ราคาขึ้นจากราคาซื้อ</th><th>ราคาหุ้นเป้าหมาย</th><th>กำไรโดยประมาณ</th></tr></thead>
+              <tbody id="dipScenarioBody"></tbody>
+            </table>
+          </div>
+          <p id="dipCalculatorStatus" class="calculator-hint" role="status" aria-live="polite">กำไรเป็นค่าประมาณก่อนค่าธรรมเนียมและภาษี</p>
+        </div>
+      </div>
+    </section>
+
     <section class="panel holdings-panel"><div class="panel-heading table-heading"><div><p class="eyebrow">HOLDINGS</p><h3>รายการถือครอง</h3></div><div class="table-tools"><label class="search-box">⌕ <input id="searchInput" type="search" placeholder="ค้นหา Symbol" /></label><select id="sortSelect" aria-label="เรียงข้อมูล"><option value="value">มูลค่ามากที่สุด</option><option value="pl">กำไรสูงสุด</option><option value="change">เปลี่ยนแปลงวันนี้</option><option value="symbol">ชื่อย่อ A-Z</option></select></div></div><div class="table-scroll"><table><thead><tr><th>สินทรัพย์</th><th>จำนวน</th><th>ราคาปัจจุบัน</th><th>ต้นทุนเฉลี่ย</th><th>มูลค่าปัจจุบัน</th><th>กำไร/ขาดทุน</th><th>วันนี้</th><th>เป้าหมาย %</th></tr></thead><tbody id="holdingsBody"></tbody></table></div></section>
     </div>
 
