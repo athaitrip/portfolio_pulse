@@ -396,6 +396,155 @@ body {
   font-size: 12px;
 }
 
+.dividend-hero {
+  margin-top: 0;
+}
+
+.dividend-kpis {
+  margin-bottom: 12px;
+}
+
+.dividend-status {
+  min-height: 20px;
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dividend-calendar-panel,
+.dividend-history-panel {
+  margin-bottom: 20px;
+}
+
+.dividend-note {
+  margin: -4px 0 16px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.dividend-calendar {
+  min-width: 0;
+}
+
+.dividend-calendar-table {
+  min-width: 900px;
+}
+
+.dividend-calendar-entry {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dividend-calendar-amounts {
+  display: grid;
+  gap: 2px;
+  text-align: right;
+}
+
+.dividend-calendar-entry strong {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.dividend-calendar-entry {
+  padding: 5px 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.dividend-calendar-entry + .dividend-calendar-entry {
+  border-top: 1px solid var(--line-light);
+}
+
+.dividend-calendar-entry strong {
+  color: var(--dark-accent);
+  text-align: right;
+}
+
+.dividend-calendar-empty {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.dividend-calendar-total {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+  color: var(--dark-accent);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+}
+
+.dividend-calendar-total-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dividend-calendar-total-line + .dividend-calendar-total-line {
+  margin-top: 4px;
+}
+
+.dividend-calendar-total-line:last-child {
+  padding-top: 4px;
+  border-top: 1px solid var(--line-light);
+}
+
+.dividend-history-table {
+  min-width: 860px;
+}
+
+.dividend-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 20px 0 10px;
+}
+
+.dividend-summary-heading h4 {
+  color: var(--dark-accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dividend-summary-scroll {
+  margin-bottom: 20px;
+}
+
+.dividend-summary-table {
+  min-width: 760px;
+}
+
+.dividend-summary-table th,
+.dividend-summary-table td {
+  text-align: right;
+}
+
+.dividend-summary-table th:first-child,
+.dividend-summary-table th:nth-child(2),
+.dividend-summary-table th:nth-child(3),
+.dividend-summary-table td:first-child,
+.dividend-summary-table td:nth-child(2),
+.dividend-summary-table td:nth-child(3) {
+  text-align: left;
+}
+
+.dividend-history-table th,
+.dividend-history-table td {
+  text-align: right;
+}
+
+.dividend-history-table th:first-child,
+.dividend-history-table th:nth-child(2),
+.dividend-history-table td:first-child,
+.dividend-history-table td:nth-child(2) {
+  text-align: left;
+}
+
 /* Grid Layout for Charts */
 .main-grid {
   display: grid;
@@ -448,6 +597,11 @@ body {
   }
 
   .dip-calculator-panel {
+    padding: 18px 16px;
+  }
+
+  .dividend-calendar-panel,
+  .dividend-history-panel {
     padding: 18px 16px;
   }
 }

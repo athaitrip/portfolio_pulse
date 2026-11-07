@@ -293,6 +293,197 @@ function renderTransactions() {
   });
 }
 
+function formatDividendDate(dateString) {
+  const date = new Date(`${dateString}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? dateString
+    : new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+}
+
+function renderDividendDashboard() {
+  const portfolio = aggregate(rows);
+  const holdings = new Map(portfolio.map(item => [item.symbol, item]));
+  const events = Object.entries(historicalData).flatMap(([symbol, history]) => {
+    const holding = holdings.get(symbol);
+    if (!holding) return [];
+    return history
+      .filter(item => item.dividend > 0 && /^\d{4}-\d{2}-\d{2}/.test(item.date))
+      .map(item => ({
+        symbol,
+        date: item.date.slice(0, 10),
+        perShare: item.dividend,
+        quantity: holding.quantity,
+        estimatedCash: item.dividend * holding.quantity,
+        estimatedTax: item.dividend * holding.quantity * 0.15,
+        estimatedNet: item.dividend * holding.quantity * 0.85
+      }));
+  }).sort((a, b) => b.date.localeCompare(a.date) || a.symbol.localeCompare(b.symbol));
+
+  const today = new Date();
+  const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const trailingStart = new Date(today);
+  trailingStart.setDate(trailingStart.getDate() - 365);
+  const trailingStartString = `${trailingStart.getFullYear()}-${String(trailingStart.getMonth() + 1).padStart(2, '0')}-${String(trailingStart.getDate()).padStart(2, '0')}`;
+  const trailingEvents = events.filter(event => event.date >= trailingStartString && event.date <= todayString);
+  const forecastYear = today.getFullYear() + 1;
+  const forecastEvents = trailingEvents.map(event => {
+    const [, month, day] = event.date.split('-').map(Number);
+    const forecastDate = new Date(forecastYear, month - 1, day);
+    if (forecastDate.getMonth() !== month - 1) forecastDate.setDate(0);
+    const date = `${forecastDate.getFullYear()}-${String(forecastDate.getMonth() + 1).padStart(2, '0')}-${String(forecastDate.getDate()).padStart(2, '0')}`;
+    return { ...event, date };
+  }).sort((a, b) => a.date.localeCompare(b.date) || a.symbol.localeCompare(b.symbol));
+
+  document.querySelector('#dividendTrailingTotal').textContent = money(trailingEvents.reduce((sum, event) => sum + event.estimatedCash, 0));
+  document.querySelector('#dividendForecastTotal').textContent = money(forecastEvents.reduce((sum, event) => sum + event.estimatedCash, 0));
+  document.querySelector('#dividendForecastYear').textContent = `ประมาณการปี ${forecastYear} จากอัตราจ่ายย้อนหลัง 12 เดือน`;
+  document.querySelector('#dividendPayerCount').textContent = String(new Set(events.map(event => event.symbol)).size);
+
+  const calendar = document.querySelector('#dividendCalendar');
+  calendar.replaceChildren();
+  const monthFormatter = new Intl.DateTimeFormat('th-TH', { month: 'long' });
+  const calendarYears = [
+    { year: forecastYear, events: forecastEvents, label: `ปีหน้า (${forecastYear}) · คาดการณ์` },
+    { year: forecastYear - 1, events, label: `ปีที่แล้ว (${forecastYear - 1})` },
+    { year: forecastYear - 2, events, label: `ปีก่อนหน้า (${forecastYear - 2})` }
+  ];
+  document.querySelector('#dividendCalendarTitle').textContent = `ปฏิทินปันผล ${forecastYear - 2}–${forecastYear}`;
+
+  const calendarHead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  [ 'เดือน', ...calendarYears.map(item => item.label) ].forEach(label => {
+    const cell = document.createElement('th');
+    cell.scope = 'col';
+    cell.textContent = label;
+    headerRow.append(cell);
+  });
+  calendarHead.append(headerRow);
+  calendar.append(calendarHead);
+  const calendarBody = document.createElement('tbody');
+
+  for (let month = 0; month < 12; month += 1) {
+    const row = document.createElement('tr');
+    const monthCell = document.createElement('th');
+    monthCell.scope = 'row';
+    monthCell.textContent = monthFormatter.format(new Date(forecastYear, month, 1));
+    row.append(monthCell);
+
+    calendarYears.forEach(({ year, events: yearEvents }) => {
+      const cell = document.createElement('td');
+      const monthEvents = yearEvents.filter(event =>
+        Number(event.date.slice(0, 4)) === year && Number(event.date.slice(5, 7)) === month + 1
+      );
+      const bySymbol = new Map();
+      monthEvents.forEach(event => {
+        if (!bySymbol.has(event.symbol)) {
+          bySymbol.set(event.symbol, { count: 0, perShare: 0, estimatedCash: 0, estimatedTax: 0, estimatedNet: 0 });
+        }
+        const summary = bySymbol.get(event.symbol);
+        summary.count += 1;
+        summary.perShare += event.perShare;
+        summary.estimatedCash += event.estimatedCash;
+        summary.estimatedTax += event.estimatedTax;
+        summary.estimatedNet += event.estimatedNet;
+      });
+
+      if (!bySymbol.size) {
+        const empty = document.createElement('span');
+        empty.className = 'dividend-calendar-empty';
+        empty.textContent = '—';
+        cell.append(empty);
+      } else {
+        bySymbol.forEach((summary, symbol) => {
+          const entry = document.createElement('div');
+          entry.className = 'dividend-calendar-entry';
+          const details = document.createElement('span');
+          details.textContent = `${symbol} · ${money(summary.perShare)}/หุ้น · ${summary.count} ครั้ง`;
+          const amounts = document.createElement('span');
+          amounts.className = 'dividend-calendar-amounts';
+          [
+            `ก่อนภาษี ${money(summary.estimatedCash)}`,
+            `ภาษี 15% ${money(summary.estimatedTax)}`,
+            `สุทธิ ${money(summary.estimatedNet)}`
+          ].forEach(label => {
+            const amount = document.createElement('strong');
+            amount.textContent = label;
+            amounts.append(amount);
+          });
+          entry.append(details, amounts);
+          cell.append(entry);
+        });
+      }
+
+      const monthlyTotal = document.createElement('div');
+      monthlyTotal.className = 'dividend-calendar-total';
+      const grossTotal = monthEvents.reduce((sum, event) => sum + event.estimatedCash, 0);
+      const taxTotal = monthEvents.reduce((sum, event) => sum + event.estimatedTax, 0);
+      const netTotal = monthEvents.reduce((sum, event) => sum + event.estimatedNet, 0);
+      [
+        ['รวมก่อนภาษี', grossTotal],
+        ['ภาษี 15%', taxTotal],
+        ['รวมหลังหักภาษี', netTotal]
+      ].forEach(([label, amount]) => {
+        const totalLine = document.createElement('div');
+        totalLine.className = 'dividend-calendar-total-line';
+        const totalLabel = document.createElement('strong');
+        totalLabel.textContent = label;
+        const totalAmount = document.createElement('strong');
+        totalAmount.textContent = money(amount);
+        totalLine.append(totalLabel, totalAmount);
+        monthlyTotal.append(totalLine);
+      });
+      cell.append(monthlyTotal);
+      row.append(cell);
+    });
+
+    calendarBody.append(row);
+  }
+  calendar.append(calendarBody);
+
+  const historyBody = document.querySelector('#dividendHistoryBody');
+  historyBody.replaceChildren();
+  document.querySelector('#dividendHistoryCount').textContent = `${events.length} รายการ`;
+
+  if (!events.length) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 7;
+    cell.className = 'empty';
+    cell.textContent = Object.keys(historicalData).length
+      ? 'ไม่พบประวัติปันผลของหุ้นที่ถืออยู่ในช่วงข้อมูลที่โหลด'
+      : 'กด “รีเฟรชราคา” เพื่อโหลดประวัติปันผลย้อนหลัง';
+    row.append(cell);
+    historyBody.append(row);
+  } else {
+    events.forEach(event => {
+      const row = document.createElement('tr');
+      [
+        formatDividendDate(event.date),
+        event.symbol,
+        money(event.perShare),
+        number(event.quantity),
+        money(event.estimatedCash),
+        money(event.estimatedTax),
+        money(event.estimatedNet)
+      ].forEach(value => {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        row.append(cell);
+      });
+      historyBody.append(row);
+    });
+  }
+
+  const status = document.querySelector('#dividendStatus');
+  if (!Object.keys(historicalData).length) {
+    status.textContent = 'กด “รีเฟรชราคา” เพื่อโหลดประวัติปันผลย้อนหลัง';
+  } else if (!events.length) {
+    status.textContent = 'ไม่พบรายการปันผลในข้อมูลย้อนหลังของหุ้นที่ถืออยู่';
+  } else {
+    status.textContent = `แสดงข้อมูลปันผล ${events.length} รายการ · ประมาณการปี ${forecastYear} ใช้ข้อมูลย้อนหลัง 12 เดือนและจำนวนหุ้นปัจจุบัน`;
+  }
+}
+
 function startEditingTransaction(id) {
   const transaction = rows.find(row => row.id === id);
   if (!transaction) return;
@@ -402,6 +593,7 @@ function renderPortfolioData() {
   renderDipCalculator(portfolio);
   renderHistoryChart();
   renderTransactions();
+  renderDividendDashboard();
 }
 
 function applyQuoteToRows(quote) {
@@ -748,7 +940,7 @@ async function refreshHistoricalData() {
     const latest = new Date();
     const timestamp = latest.toLocaleDateString('th-TH') + ' ' + latest.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
     updatedAt.textContent = `ราคาอัปเดต ${timestamp}`;
-    status.textContent = 'โหลดข้อมูลย้อนหลังเรียบร้อย';
+    status.textContent = 'โหลดข้อมูลย้อนหลังและปันผลเรียบร้อย';
   } catch (error) {
     console.error('Could not load historical data:', error);
     updatedAt.textContent = 'รีเฟรชราคาย้อนหลังไม่สำเร็จ';
@@ -779,6 +971,7 @@ async function renderPortfolio(csvText, extraTransactions = [], transactionEdits
 
   historicalData = {};
   renderHistoryChart();
+  renderDividendDashboard();
   document.querySelector('#updatedAt').textContent = 'ยังไม่ได้รีเฟรชราคาย้อนหลัง';
   document.querySelector('#historyStatus').textContent = 'กด “รีเฟรชราคา” เพื่อโหลดข้อมูลย้อนหลัง';
 }

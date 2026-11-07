@@ -19,6 +19,7 @@
     <nav class="tab-nav" aria-label="เมนูหลัก">
       <button class="tab-button active" type="button" data-view="dashboardView" aria-selected="true">ภาพรวม</button>
       <button class="tab-button" type="button" data-view="transactionsView" aria-selected="false">รายการซื้อขาย</button>
+      <button class="tab-button" type="button" data-view="dividendsView" aria-selected="false">ปันผล</button>
     </nav>
 
     <div id="dashboardView" class="tab-view">
@@ -157,6 +158,49 @@
           <table class="transactions-table">
             <thead><tr><th>วันที่</th><th>สัญลักษณ์</th><th>ประเภท</th><th>จำนวน</th><th>ราคาซื้อขาย</th><th>ค่าคอมมิชชัน</th><th>หมายเหตุ</th><th>จัดการ</th></tr></thead>
             <tbody id="transactionsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section id="dividendsView" class="tab-view" hidden>
+      <section class="hero-row dividend-hero">
+        <div><p class="eyebrow">DIVIDEND TRACKER</p><h2>ติดตามปันผล<br><em>และวางแผนล่วงหน้า</em></h2></div>
+        <div class="hero-note"><span class="note-line"></span><p>ข้อมูลจากประวัติราคา Tiingo<br>กด “รีเฟรชราคา” เพื่อโหลดข้อมูลปันผล</p></div>
+      </section>
+
+      <section class="kpi-grid dividend-kpis">
+        <article class="kpi-card accent"><div class="kpi-label">ปันผลย้อนหลัง 12 เดือน</div><strong id="dividendTrailingTotal">—</strong><span>ประเมินตามจำนวนหุ้นที่ถือปัจจุบัน</span></article>
+        <article class="kpi-card"><div class="kpi-label">ประมาณการปันผลปีหน้า</div><strong id="dividendForecastTotal">—</strong><span id="dividendForecastYear">อิงอัตราจ่ายย้อนหลัง 12 เดือน</span></article>
+        <article class="kpi-card"><div class="kpi-label">หุ้นที่มีประวัติจ่ายปันผล</div><strong id="dividendPayerCount">—</strong><span>จากหุ้นที่ถืออยู่ในพอร์ต</span></article>
+      </section>
+
+      <p id="dividendStatus" class="dividend-status" role="status" aria-live="polite">กด “รีเฟรชราคา” เพื่อโหลดประวัติปันผลย้อนหลัง</p>
+
+      <section class="panel dividend-calendar-panel">
+        <div class="panel-heading">
+          <div><p class="eyebrow">FORECAST CALENDAR</p><h3 id="dividendCalendarTitle">ปฏิทินปันผลคาดการณ์</h3></div>
+          <span class="panel-meta">กำหนดการประมาณการ</span>
+        </div>
+        <p class="dividend-note">วันปันผลเป็นการคาดการณ์จากประวัติ ไม่ใช่กำหนดการยืนยัน ยอดภาษี 15% และยอดสุทธิเป็นการประเมินเบื้องต้น</p>
+        <div class="table-scroll dividend-calendar-scroll">
+          <table id="dividendCalendar" class="dividend-calendar-table"></table>
+        </div>
+      </section>
+
+      <section class="panel dividend-history-panel">
+        <div class="panel-heading table-heading">
+          <div><p class="eyebrow">PAST DIVIDENDS</p><h3>ประวัติปันผลย้อนหลัง</h3></div>
+          <span id="dividendHistoryCount" class="panel-meta">0 รายการ</span>
+        </div>
+        <p class="dividend-note">ประเมินจากปันผลต่อหุ้นคูณจำนวนหุ้นปัจจุบัน ไม่ใช่ยอดที่ได้รับจริงในอดีต และคำนวณภาษีสมมติ 15%</p>
+        <div class="dividend-summary-heading dividend-events-heading">
+          <h4>รายการปันผลแต่ละครั้ง</h4>
+        </div>
+        <div class="table-scroll">
+          <table class="dividend-history-table">
+            <thead><tr><th>วันขึ้นเครื่องหมาย</th><th>หุ้น</th><th>ปันผลต่อหุ้น</th><th>จำนวนหุ้นปัจจุบัน</th><th>มูลค่าก่อนภาษี</th><th>ภาษี 15%</th><th>สุทธิหลังหักภาษี</th></tr></thead>
+            <tbody id="dividendHistoryBody"></tbody>
           </table>
         </div>
       </section>

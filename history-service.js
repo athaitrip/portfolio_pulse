@@ -41,7 +41,12 @@ async function getHistoricalData(symbols, apiKey) {
     }
 
     const data = await response.json();
-    const cleanData = data.map(item => ({ date: item.date, close: item.adjClose, price: item.close }));
+    const cleanData = data.map(item => ({
+      date: item.date,
+      close: item.adjClose,
+      price: item.close,
+      dividend: Number(item.divCash) || 0
+    }));
     cache.set(symbol, { date: today, data: cleanData });
     results[symbol] = cleanData;
     await new Promise(resolve => setTimeout(resolve, 250));
